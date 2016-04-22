@@ -36,12 +36,14 @@ int main(int argc, char *argv[]){
   sem_init(&mySemaphore, 0, 0);
   vector<pthread_t> threads;
     
-  char* port = malloc(sizeof((char*)argv[1]));
-  *port = *argv[1]; 
-  pid = pthread_create(&pro,NULL,&producer,port);
+  //char* port = malloc(sizeof((char*)argv[1]));
+  //*port = *argv[1]; 
+  if((pid = pthread_create(&pro,NULL,&producer,argv[1])))
+    printf("producer is broken");
   for(int i = 0; i < MAX_THREADS; i++){
     pthread_t new_thread;
-    cid = pthread_create(&new_thread,NULL,&consumer,port);
+    if((cid = pthread_create(&new_thread,NULL,&consumer,argv[1])))
+      printf("consumer is broken");
     threads.push_back(new_thread);
   }
     
@@ -59,11 +61,11 @@ void *consumer(void *arg){ //# of consumer threads = MAX_THREADS
     pthread_mutex_unlock(&lock);
     //do all actions on socket
   }
-    
+  return;
     
 }
 void *producer(void *arg){    //One producer thread  - need to include port for getaddrinfo
-  char* port = *((char*)arg);
+  char* port = (char*)arg;
   int sockfd, new_fd, rv;
   struct addrinfo hints, *servinfo, *p;
   struct sockaddr_storage their_addr;
