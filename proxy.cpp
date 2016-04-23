@@ -38,11 +38,11 @@ int main(int argc, char *argv[]){
     
   //char* port = malloc(sizeof((char*)argv[1]));
   //*port = *argv[1]; 
-  if((pid = pthread_create(&pro,NULL,&producer,argv[1])))
+  if((pid = pthread_create(&pro,NULL,&producer,(void*)argv[1])))
     printf("producer is broken");
   for(int i = 0; i < MAX_THREADS; i++){
     pthread_t new_thread;
-    if((cid = pthread_create(&new_thread,NULL,&consumer,argv[1])))
+    if((cid = pthread_create(&new_thread,NULL,&consumer,(void*)argv[1])))
       printf("consumer is broken");
     threads.push_back(new_thread);
   }
@@ -61,8 +61,8 @@ void *consumer(void *arg){ //# of consumer threads = MAX_THREADS
     pthread_mutex_unlock(&lock);
     //do all actions on socket
   }
-  return;
-    
+  return NULL;
+
 }
 void *producer(void *arg){    //One producer thread  - need to include port for getaddrinfo
   char* port = (char*)arg;
@@ -79,7 +79,7 @@ void *producer(void *arg){    //One producer thread  - need to include port for 
   
   if((rv = getaddrinfo(NULL, port, &hints, &servinfo)) != 0){
     cout << "GetAddrInfo failed with error " << rv;
-    return;
+    return NULL;
   }
   for(p = servinfo; p!= NULL; p = p->ai_next){
     if((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == 0){
@@ -119,6 +119,7 @@ void *producer(void *arg){    //One producer thread  - need to include port for 
     pthread_mutex_unlock(&lock); 
     sem_post(&mySemaphore);  
   }
+  return NULL;
 }
 
 
