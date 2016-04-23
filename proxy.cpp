@@ -26,6 +26,7 @@ pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 queue<int> sockets;
 const int MAX_THREADS = 30;
 sem_t mySemaphore;
+char *resBuf = (char*)malloc(1000000);
 
 void *producer(void *arg);
 void *consumer(void *arg);
@@ -36,8 +37,6 @@ int main(int argc, char *argv[]){
   sem_init(&mySemaphore, 0, 0);
   vector<pthread_t> threads;
     
-  //char* port = malloc(sizeof((char*)argv[1]));
-  //*port = *argv[1]; 
   if((pid = pthread_create(&pro,NULL,&producer,(void*)argv[1])))
     printf("producer is broken");
   for(int i = 0; i < MAX_THREADS; i++){
@@ -46,12 +45,21 @@ int main(int argc, char *argv[]){
       printf("consumer is broken");
     threads.push_back(new_thread);
   }
+  if(pthread_join(pid, NULL) || pthread_join(cid, NULL)){
+    cout << "Join error" << endl;
+    pthread_cancel(pid);
+    pthread_cancel(cid);
+  }
     
   return 0;
 }
 
 void *consumer(void *arg){ //# of consumer threads = MAX_THREADS
   int sockfd;
+  int numRead = 0;
+  char *reqBuf = (char*)malloc(32);
+  int size = 32;
+  bool signal = false;
     
   while(1){
     sem_wait(&mySemaphore);
@@ -59,10 +67,18 @@ void *consumer(void *arg){ //# of consumer threads = MAX_THREADS
     sockfd = sockets.front();
     sockets.pop();
     pthread_mutex_unlock(&lock);
-    //do all actions on socket
+    
+    while((numRead = read(sockfd, reqBuf, size)) && size > 0 && !signal){
+      reqBuf += numRead;
+      size -= numRead;
+      if(numRead > 4){
+        if(reqBuf[numRead-4]=='\r' && reqBuf[numRead-3]=='\n'&& reqBuf[numRead-2]=='\r' && reqBuf[numRead]=='\r')
+          signal = true;
+      }
+    }
+    cout << reqBuf << endl;
   }
   return NULL;
-
 }
 void *producer(void *arg){    //One producer thread  - need to include port for getaddrinfo
   char* port = (char*)arg;
