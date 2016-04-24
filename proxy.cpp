@@ -28,7 +28,7 @@ using namespace std;
 struct Request
 {
 	char* buffer;
-	char* host;
+	const char* host;
 };
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
@@ -40,7 +40,8 @@ const string HTTPVERSION = "HTTP/1.0";
 sem_t mySemaphore;
 char *resBuf = (char*)malloc(1000000);
 
-//Request validateRequest(char*);
+bool validateRequest(char *buffer);
+void setRequest(Request *r, char *buffer);
 void *producer(void *arg);
 void *consumer(void *arg);
 void *hello(void *arg);
@@ -227,7 +228,7 @@ bool validateRequest(char *buffer)
 	return true;
 }
 
-void setRequest(Request r, char* buffer)
+void setRequest(Request *r, char* buffer)
 {
 
 	// Make a duplicate of the buffer
@@ -252,8 +253,7 @@ void setRequest(Request r, char* buffer)
 
 	r->buffer = buffer;
 	// Convert string to char buffer
-	char *cstr = new chat[line[1].length() + 1];
-	strcpy(cstr, line[1].c_str());
-	r->host = cstr;
+	string uri = list[1].substr(list[1].find("w"), list[1].size());
+	r->host = uri.c_str();
 }
 
