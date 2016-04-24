@@ -18,22 +18,32 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <csignal>
+#include <string>
 
 
 using namespace std;
 
+struct Request{
+  bool success;
+  char* buffer;
+  char* host;
+};
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 queue<int> sockets;
 const int MAX_THREADS = 30;
+const int MAX_REQ_SIZE = 350;
 sem_t mySemaphore;
 char *resBuf = (char*)malloc(1000000);
 
+Request validateRequest(char*);
 void *producer(void *arg);
 void *consumer(void *arg);
+void *hello(void *arg);
 
 int main(int argc, char *argv[]){
   pthread_t pro;
-  int pid, cid;
+  int pid;
+  int cid[MAX_THREADS];
   sem_init(&mySemaphore, 0, 0);
   vector<pthread_t> threads;
     
@@ -41,25 +51,30 @@ int main(int argc, char *argv[]){
     printf("producer is broken");
   for(int i = 0; i < MAX_THREADS; i++){
     pthread_t new_thread;
-    if((cid = pthread_create(&new_thread,NULL,&consumer,(void*)argv[1])))
+    if((cid[i] = pthread_create(&new_thread,NULL,&consumer,(void*)argv[1])))
       printf("consumer is broken");
     threads.push_back(new_thread);
   }
-  if(pthread_join(pid, NULL) || pthread_join(cid, NULL)){
+  for(int i = 0; i <MAX_THREADS;i++){
+    if(pthread_join(threads[i],NULL)){
+       cout << "Join error" << endl;
+       pthread_cancel(cid[i]);
+    }
+  }
+  if(pthread_join(pro, NULL)){
     cout << "Join error" << endl;
     pthread_cancel(pid);
-    pthread_cancel(cid);
-  }
-    
+  } 
   return 0;
 }
 
 void *consumer(void *arg){ //# of consumer threads = MAX_THREADS
-  int sockfd;
+  int sockfd, proxyfd, rv;
   int numRead = 0;
-  char *reqBuf = (char*)malloc(32);
-  int size = 32;
+  char *reqBuf = (char*)malloc(MAX_REQ_SIZE);
+  int size = MAX_REQ_SIZE;
   bool signal = false;
+  Request clientRequest;
     
   while(1){
     sem_wait(&mySemaphore);
@@ -68,16 +83,29 @@ void *consumer(void *arg){ //# of consumer threads = MAX_THREADS
     sockets.pop();
     pthread_mutex_unlock(&lock);
     
-    while((numRead = read(sockfd, reqBuf, size)) && size > 0 && !signal){
+    while(!signal && (size > 0)){
+      numRead = read(sockfd, reqBuf, size);
       reqBuf += numRead;
       size -= numRead;
-      if(numRead > 4){
-        if(reqBuf[numRead-4]=='\r' && reqBuf[numRead-3]=='\n'&& reqBuf[numRead-2]=='\r' && reqBuf[numRead]=='\r')
+      if(numRead >= 4){
+        char* temp = reqBuf-numRead;
+        string buf(temp);
+        if(buf.find("\r\n\r\n") != std::string::npos){
+          numRead = buf.find("\r\n\r\n", 0) + 4;
+          reqBuf -= buf.length() - numRead;
           signal = true;
+        }
       }
+      if(numRead == MAX_REQ_SIZE)
+        break;
     }
-    cout << reqBuf << endl;
+    reqBuf-=numRead;
+    clientRequest = validateRequest(reqBuf);
+    
+    
+    close(sockfd);
   }
+  
   return NULL;
 }
 void *producer(void *arg){    //One producer thread  - need to include port for getaddrinfo
@@ -137,5 +165,4 @@ void *producer(void *arg){    //One producer thread  - need to include port for 
   }
   return NULL;
 }
-
 
