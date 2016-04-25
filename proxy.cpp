@@ -38,10 +38,8 @@ const int MAX_REQ_SIZE = 350;
 const int MAX_REC_SIZE = 32768; 
 const string METHOD = "GET";
 const string HTTPVERSION = "HTTP/1.0";
-char* ERROR = (char*)malloc(21);
-strcpy(&ERROR, "500 'Internal Error'");
-char* HTTPPORT = (char*)malloc(3);
-strcpy(&HTTPPORT, "80");
+char* ERROR = (char*)"500 'Internal Error'";
+char* HTTPPORT = (char*)"80";
 sem_t mySemaphore;
 
 bool validateRequest(char *buffer);
