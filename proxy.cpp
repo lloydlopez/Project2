@@ -88,10 +88,12 @@ void *consumer(void *arg)
 	struct addrinfo hints, *servinfo, *p;
  	char *recBuf = (char*)malloc(MAX_REC_SIZE);
 	int numRead = 0;
+	int sent = 0;
 	char *reqBuf = (char*)malloc(MAX_REQ_SIZE);
 	int size = MAX_REQ_SIZE;
 	bool signal = false;
 	Request clientRequest;
+	int bufSize = MAX_REQ_SIZE;
 
 	while (1) {
 		sem_wait(&mySemaphore);
@@ -158,18 +160,41 @@ void *consumer(void *arg)
 			size = MAX_REC_SIZE;
 			numRead = 0;
 				
-			//write to web server
-			while((numRead = read(proxyfd, recBuf, size)) && size > 0){
+			while((sent = write(proxyfd, r->buffer, bufSize)) && bufSize > 0){
+				if(sent < 0)
+					perror("Write Failed");
+				r->buffer += sent;
+				bufSize -= sent;
+			}
+			
+			while((numRead = read(proxyfd, recBuf, size))){
 				recBuf += numRead;
 				size -= numRead
-				if(recBuf = MAX_REC_SIZE){
-					//write to client
-					//reset recBuf and size to keep reading?
+				if(size == 0){
+					recBuf -= MAX_REC_SIZE;
+					size += MAX_REC_SIZE;
+					while((sent = write(sockfd, recBuf, size)) && size > 0){
+						recBuf += sent;
+						size -= sent;
+					}
+					recBuf -= MAX_REC_SIZE;
+					size += MAX_REC_SIZE;
 				}
+			}
+			size = numRead;
+			recbuf -= numRead;
+			while((sent = write(sockfd, recBuf, size)) && size > 0){
+				recBuf += sent;
+				size -= sent;
 			}
 			
 		} else {
-			write(sockfd, &500ERROR, sizeof(500ERROR));
+			size = sizeof(500ERROR);
+			char* ptr = &500ERROR;
+			while((sent = write(sockfd, ptr, size)) && size > 0){
+				ptr += sent;
+				size -= sent;
+			}
 			cout << "Error: request not valid"
 		}	
 		
