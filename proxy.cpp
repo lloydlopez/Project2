@@ -189,7 +189,12 @@ void *consumer(void *arg)
 			}
 			
 		} else {
-			write(sockfd, &500ERROR, sizeof(500ERROR));
+			size = sizeof(500ERROR);
+			char* ptr = &500ERROR;
+			while((sent = write(sockfd, ptr, size)) && size > 0){
+				ptr += sent;
+				size -= sent;
+			}
 			cout << "Error: request not valid"
 		}	
 		
