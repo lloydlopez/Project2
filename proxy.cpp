@@ -35,10 +35,12 @@ pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 queue<int> sockets;
 const int MAX_THREADS = 30;
 const int MAX_REQ_SIZE = 350;
+const int MAX_REC_SIZE = 32768; 
 const string METHOD = "GET";
 const string HTTPVERSION = "HTTP/1.0";
+const char 500ERROR[20] = "500 'Internal Error'"
+const char HTTPPORT[2] = "80";
 sem_t mySemaphore;
-char *resBuf = (char*)malloc(1000000);
 
 bool validateRequest(char *buffer);
 void setRequest(Request *r, char *buffer);
@@ -83,6 +85,8 @@ int main(int argc, char *argv[])
 void *consumer(void *arg)
 {
 	int sockfd, proxyfd, rv;
+	struct addrinfo hints, *servinfo, *p;
+ 	char *recBuf = (char*)malloc(MAX_REC_SIZE);
 	int numRead = 0;
 	char *reqBuf = (char*)malloc(MAX_REQ_SIZE);
 	int size = MAX_REQ_SIZE;
@@ -119,11 +123,55 @@ void *consumer(void *arg)
 			struct Request r;
 			setRequest(&r, reqBuf);
 			cout << reqBuf << endl;
-		
-		} else {
+			
+			//open socket to web server
+			memset(&hints, 0, sizeof hints);
+			hints.ai_family = AF_UNSPEC;
+			hints.ai_socktype = SOCK_STREAM;
+			if((rv = getaddrinfo(r->host, &HTTPPORT, &hints, &servinfo)) != 0) {
+				cout << "getaddrinfo failed with code " << rv;
+				return 1;
+			}
+			for(p = servinfo; p != NULL; p = p->ai_next) {
+				if ((proxyfd = socket(p->ai_family, p->ai_socktype,
+				p->ai_protocol)) == -1) {
+					perror("client: socket");
+					continue;
+				}
 
-			cout << "Error: request not valid";
-		}
+				if (connect(proxyfd, p->ai_addr, p->ai_addrlen) == -1) {
+					close(proxyfd);
+					perror("client: connect");
+					continue;
+				}
+
+				break;
+			}
+
+			if (p == NULL) {
+				fprintf(stderr, "client: failed to connect\n");
+				return 2;
+			}
+
+			freeaddrinfo(servinfo);
+			
+			size = MAX_REC_SIZE;
+			numRead = 0;
+				
+			//write to web server
+			while((numRead = read(proxyfd, recBuf, size)) && size > 0){
+				recBuf += numRead;
+				size -= numRead
+				if(recBuf = MAX_REC_SIZE){
+					//write to client
+					//reset recBuf and size to keep reading?
+				}
+			}
+			
+		} else {
+			write(sockfd, &500ERROR, sizeof(500ERROR));
+			cout << "Error: request not valid"
+		}	
 		
 		close(sockfd);
 	}
