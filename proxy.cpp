@@ -38,8 +38,10 @@ const int MAX_REQ_SIZE = 350;
 const int MAX_REC_SIZE = 32768; 
 const string METHOD = "GET";
 const string HTTPVERSION = "HTTP/1.0";
-const char 500ERROR[20] = "500 'Internal Error'"
-const char HTTPPORT[2] = "80";
+char* ERROR = (char*)malloc(21);
+strcpy(&ERROR, "500 'Internal Error'");
+char* HTTPPORT = (char*)malloc(3);
+strcpy(&HTTPPORT, "80");
 sem_t mySemaphore;
 
 bool validateRequest(char *buffer);
@@ -92,7 +94,6 @@ void *consumer(void *arg)
 	char *reqBuf = (char*)malloc(MAX_REQ_SIZE);
 	int size = MAX_REQ_SIZE;
 	bool signal = false;
-	Request clientRequest;
 	int bufSize = MAX_REQ_SIZE;
 
 	while (1) {
@@ -130,9 +131,9 @@ void *consumer(void *arg)
 			memset(&hints, 0, sizeof hints);
 			hints.ai_family = AF_UNSPEC;
 			hints.ai_socktype = SOCK_STREAM;
-			if((rv = getaddrinfo(r->host, &HTTPPORT, &hints, &servinfo)) != 0) {
+			if((rv = getaddrinfo(r.host, &HTTPPORT, &hints, &servinfo)) != 0) {
 				cout << "getaddrinfo failed with code " << rv;
-				return 1;
+				return NULL;
 			}
 			for(p = servinfo; p != NULL; p = p->ai_next) {
 				if ((proxyfd = socket(p->ai_family, p->ai_socktype,
@@ -152,7 +153,7 @@ void *consumer(void *arg)
 
 			if (p == NULL) {
 				fprintf(stderr, "client: failed to connect\n");
-				return 2;
+				return NULL;
 			}
 
 			freeaddrinfo(servinfo);
@@ -160,16 +161,16 @@ void *consumer(void *arg)
 			size = MAX_REC_SIZE;
 			numRead = 0;
 				
-			while((sent = write(proxyfd, r->buffer, bufSize)) && bufSize > 0){
+			while((sent = write(proxyfd, r.buffer, bufSize)) && bufSize > 0){
 				if(sent < 0)
 					perror("Write Failed");
-				r->buffer += sent;
+				r.buffer += sent;
 				bufSize -= sent;
 			}
 			
 			while((numRead = read(proxyfd, recBuf, size))){
 				recBuf += numRead;
-				size -= numRead
+				size -= numRead;
 				if(size == 0){
 					recBuf -= MAX_REC_SIZE;
 					size += MAX_REC_SIZE;
@@ -182,15 +183,15 @@ void *consumer(void *arg)
 				}
 			}
 			size = numRead;
-			recbuf -= numRead;
+			recBuf -= numRead;
 			while((sent = write(sockfd, recBuf, size)) && size > 0){
 				recBuf += sent;
 				size -= sent;
 			}
 			
 		} else {
-			size = sizeof(500ERROR);
-			char* ptr = &500ERROR;
+			size = sizeof(ERROR);
+			char* ptr = &ERROR;
 			while((sent = write(sockfd, ptr, size)) && size > 0){
 				ptr += sent;
 				size -= sent;
