@@ -265,45 +265,8 @@ void *producer(void *arg)
 	return NULL;
 }
 
-bool validateRequest(char *buffer)
-{
-	if (buffer == NULL || strlen(buffer) < 1)
-	{
-		return false;
-	}
-
-	// Make a duplicate of the buffer
-	char *copy = (char*)malloc(MAX_REQ_SIZE);
-	strncpy(copy, buffer, MAX_REQ_SIZE);
-
-	string line(copy);
-	// Retrieve just the request line
-	line = line.substr(0, line.find("\r\n"));
-
-	// Separate the request line by tokens using the delimiter 
-	//	and add them to a vector
-	string delimiter = " ";
-	vector<string> list;
-	size_t pos = 0;
-	while ((pos = line.find(delimiter)) != string::npos)
-	{
-		list.push_back(line.substr(0, pos));
-		line.erase(0, pos + delimiter.length());
-	}
-
-	// If the list has more than 3 elements, method not 'GET',
-	//	or HTTP VERSION not '1.0' then request is not valid
-	if (list.size() > 3 || list[0] != METHOD || list[2] != HTTPVERSION)
-	{
-		return false;
-	}
-
-	return true;
-}
-
 void setRequest(Request *r, char* buffer)
 {
-
 	// Make a duplicate of the buffer
 	char *copy = (char*)malloc(MAX_REQ_SIZE);
 	strncpy(copy, buffer, MAX_REQ_SIZE);
@@ -328,5 +291,19 @@ void setRequest(Request *r, char* buffer)
 	// Convert string to char buffer
 	string uri = list[1].substr(list[1].find("w"), list[1].size());
 	r->host = uri.c_str();
+
+	char *serverMsg = (char*)malloc(MAX_REC_SIZE);
+	serverMsg = METHOD + " / " + HTTPVERSION + "\r\nHost: www." + r->host + "\r\n" + "Connection: close\r\n";
+
+	// Make a duplicate of the buffer
+	char *copy2 = (char*)malloc(MAX_REQ_SIZE);
+	strncpy(copy2, buffer, MAX_REQ_SIZE);
+
+	string headers(copy2);
+	// Retrieve just the headers
+	headers.erase(0, headers.find("\r\n"));
+
+	// Add the headers to server message
+	r->buffer = serverMsg + headers;
 }
 
