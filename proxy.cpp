@@ -39,7 +39,7 @@ const int MAX_REC_SIZE = 32768;
 const string METHOD = "GET";
 const string HTTPVERSION = "HTTP/1.0";
 char* ERROR = (char*)"500 'Internal Error'";
-char* HTTPPORT = (char*)"80";
+const char* HTTPPORT = (char*)"80";
 sem_t mySemaphore;
 
 bool validateRequest(char *buffer);
@@ -129,7 +129,7 @@ void *consumer(void *arg)
 			memset(&hints, 0, sizeof hints);
 			hints.ai_family = AF_UNSPEC;
 			hints.ai_socktype = SOCK_STREAM;
-			if((rv = getaddrinfo(r.host, &HTTPPORT, &hints, &servinfo)) != 0) {
+			if((rv = getaddrinfo(r.host, HTTPPORT, &hints, &servinfo)) != 0) {
 				cout << "getaddrinfo failed with code " << rv;
 				return NULL;
 			}
@@ -189,12 +189,12 @@ void *consumer(void *arg)
 			
 		} else {
 			size = sizeof(ERROR);
-			char* ptr = &ERROR;
+			char* ptr = ERROR;
 			while((sent = write(sockfd, ptr, size)) && size > 0){
 				ptr += sent;
 				size -= sent;
 			}
-			cout << "Error: request not valid"
+			cout << "Error: request not valid";
 		}	
 		
 		close(sockfd);
@@ -292,7 +292,7 @@ void setRequest(Request *r, char* buffer)
 	r->host = uri.c_str();
 
 	char *serverMsg = (char*)malloc(MAX_REC_SIZE);
-	serverMsg = METHOD + " / " + HTTPVERSION + "\r\nHost: www." + r->host + "\r\n" + "Connection: close\r\n";
+	serverMsg = (char*)((METHOD + " / " + HTTPVERSION + "\r\nHost: www." + r->host + "\r\n" + "Connection: close\r\n").c_str());
 
 	// Make a duplicate of the buffer
 	char *copy2 = (char*)malloc(MAX_REQ_SIZE);
@@ -303,6 +303,6 @@ void setRequest(Request *r, char* buffer)
 	headers.erase(0, headers.find("\r\n"));
 
 	// Add the headers to server message
-	r->buffer = serverMsg + headers;
+	r->buffer = (char*)((serverMsg + headers).c_str());
 }
 
