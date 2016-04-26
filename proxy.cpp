@@ -293,18 +293,29 @@ bool validateRequest(char *buffer)
 	string delimiter = " ";
 	vector<string> list;
 	size_t pos = 0;
+	
+	// WHAT IF THERE'S MORE THAN 3 ELEMENTS? HOW TO SEE?
 	while ((pos = line.find(delimiter)) != string::npos)
 	{
-		//SEG FAULT OCCURING HERE
+		//
 		list.push_back(line.substr(0, pos));
-		line.erase(0, pos);
+		line.erase(0, pos + delimiter.length());
 	}
+	
+	list.push_back(line.substr(0, pos));
+
 	// If the list has more than 3 elements, method not 'GET',
 	//	or HTTP VERSION not '1.0' then request is not valid
 	if (list.size() > 3 || list[0] != METHOD || list[2] != HTTPVERSION)
 	{
 		return false;
 	}
+
+	//Debugging
+	//cout << line << endl;
+	//cout << list[0] << endl;
+	//cout << list[2] << endl;
+	//cout << "YUP" << endl;
 	return true;
 }
 
