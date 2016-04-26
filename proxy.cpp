@@ -342,7 +342,7 @@ void setRequest(Request *r, char* buffer)
 
 	r->buffer = buffer;
 	// Convert string to char buffer
-	string uri = list[1].substr(list[1].find("/") + 2, list[1].size());
+	string uri = list[1].substr(list[1].find("/") + 2, list[1].size() - 1);
 
 	if(uri.substr(0,4) != "www.")
 	{
@@ -366,3 +366,4 @@ void setRequest(Request *r, char* buffer)
 	r->buffer = (char*)((serverMsg + headers).c_str());
 }
 
+// TEST: google.com www.google.com/ /www.google.com
