@@ -346,13 +346,13 @@ void setRequest(Request *r, char* buffer)
 
 	if(uri.substr(0,4) != "www.")
 	{
-		uri = "www." + uri;
+		uri += "www.";
 	}
 
 	r->host = uri.c_str();
 
 	char *serverMsg = (char*)malloc(MAX_REC_SIZE);
-	serverMsg = (char*)((METHOD + " / " + HTTPVERSION + "\r\nHost: " + r->host + "\r\n" + "Connection: close\r\n").c_str());
+	serverMsg = (char*)((METHOD + " / " + HTTPVERSION + "\r\nHost: www." + r->host + "\r\n" + "Connection: close\r\n").c_str());
 
 	// Make a duplicate of the buffer
 	char *copy2 = (char*)malloc(MAX_REQ_SIZE);
