@@ -118,7 +118,6 @@ void *consumer(void *arg)
 				break;
 		}
 		reqBuf -= numRead;
-
 		if(validateRequest(reqBuf))
 		{
 			struct Request r;
@@ -158,13 +157,19 @@ void *consumer(void *arg)
 			
 			size = MAX_REC_SIZE;
 			numRead = 0;
-				
+			
+			cout << "Created new socket!" << endl;
+			sleep(20);
+			
 			while((sent = write(proxyfd, r.buffer, bufSize)) && bufSize > 0){
 				if(sent < 0)
 					perror("Write Failed");
 				r.buffer += sent;
 				bufSize -= sent;
 			}
+			
+			cout << "Completed first write!" << endl;
+			sleep(5);
 			
 			while((numRead = read(proxyfd, recBuf, size))){
 				recBuf += numRead;
@@ -180,12 +185,16 @@ void *consumer(void *arg)
 					size += MAX_REC_SIZE;
 				}
 			}
+			cout << "Completed read/write!" << endl;
+			sleep(5);
 			size = numRead;
 			recBuf -= numRead;
 			while((sent = write(sockfd, recBuf, size)) && size > 0){
 				recBuf += sent;
 				size -= sent;
 			}
+			cout << "done!" << endl;
+			sleep(5);
 			
 		} else {
 			size = sizeof(ERROR);
@@ -270,7 +279,7 @@ bool validateRequest(char *buffer)
 	{
 		return false;
 	}
-
+	
 	// Make a duplicate of the buffer
 	char *copy = (char*)malloc(MAX_REQ_SIZE);
 	strncpy(copy, buffer, MAX_REQ_SIZE);
@@ -286,17 +295,16 @@ bool validateRequest(char *buffer)
 	size_t pos = 0;
 	while ((pos = line.find(delimiter)) != string::npos)
 	{
+		//SEG FAULT OCCURING HERE
 		list.push_back(line.substr(0, pos));
-		line.erase(0, pos + delimiter.length());
+		line.erase(0, pos);
 	}
-
 	// If the list has more than 3 elements, method not 'GET',
 	//	or HTTP VERSION not '1.0' then request is not valid
 	if (list.size() > 3 || list[0] != METHOD || list[2] != HTTPVERSION)
 	{
 		return false;
 	}
-
 	return true;
 }
 
