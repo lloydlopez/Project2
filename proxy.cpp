@@ -297,12 +297,11 @@ bool validateRequest(char *buffer)
 	// WHAT IF THERE'S MORE THAN 3 ELEMENTS? HOW TO SEE?
 	while ((pos = line.find(delimiter)) != string::npos)
 	{
-		//
 		list.push_back(line.substr(0, pos));
 		line.erase(0, pos + delimiter.length());
 	}
 	
-	list.push_back(line.substr(0, pos));
+	list.push_back(line.substr(0, pos - 1));
 
 	// If the list has more than 3 elements, method not 'GET',
 	//	or HTTP VERSION not '1.0' then request is not valid
@@ -343,7 +342,13 @@ void setRequest(Request *r, char* buffer)
 
 	r->buffer = buffer;
 	// Convert string to char buffer
-	string uri = list[1].substr(list[1].find("w"), list[1].size());
+	string uri = list[1].substr(list[1].find("/") + 2, list[1].size());
+
+	if(uri.substr(0,4) != "www.")
+	{
+		uri += "www.";
+	}
+
 	r->host = uri.c_str();
 
 	char *serverMsg = (char*)malloc(MAX_REC_SIZE);
