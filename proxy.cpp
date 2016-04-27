@@ -122,8 +122,7 @@ void *consumer(void *arg)
 		reqBuf -= numRead;
 		if(validateRequest(reqBuf))
 		{
-			cout << "BEFORE--------------" << endl;
-			cout << r.buffer << endl;
+			
 			setRequest(&r, reqBuf);
 			cout << "AFTER---------------" << endl;
 			cout << r.buffer << endl;
@@ -353,7 +352,6 @@ void setRequest(Request *r, char* buffer)
 	
 	r->host = new char[uri.length() + 1];
 	strcpy(r->host, uri.c_str());
-	//r->host = uri.c_str();
 
 	char *serverMsg = (char*)malloc(MAX_REQ_SIZE);
 	serverMsg = (char*)((METHOD + " / " + HTTPVERSION + "\r\nHost: " + r->host + "\r\n" + "Connection: close\r\n").c_str());
@@ -366,7 +364,7 @@ void setRequest(Request *r, char* buffer)
 
 	// Retrieve just the headers
 	headers.erase(0, headers.find("\r\n"));
-
+	cout << headers << endl;
 	// Deletes Host and Connection from headers
 	int hostname = headers.find("Host: ");
 	//int connect = headers.find("Connection: ") - 12;
