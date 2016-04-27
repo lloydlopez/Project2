@@ -34,7 +34,7 @@ struct Request
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 queue<int> sockets;
 const int MAX_THREADS = 30;
-const int MAX_REQ_SIZE = 2048;
+const int MAX_REQ_SIZE = 4096;
 const int MAX_REC_SIZE = 100000; 
 const string METHOD = "GET";
 const string HTTPVERSION = "HTTP/1.0";
@@ -124,9 +124,6 @@ void *consumer(void *arg)
 		{
 			
 			setRequest(&r, reqBuf);
-			cout << "AFTER---------------" << endl;
-			cout << r.buffer << endl;
-			
 			
 			//open socket to web server
 			memset(&hints, 0, sizeof hints);
@@ -197,6 +194,9 @@ void *consumer(void *arg)
 				size -= sent;
 			}
 			cout << "done!" << endl;
+			cout << endl;
+			cout << endl;
+			cout << endl;
 			
 		} else {
 			size = sizeof(ERROR);
@@ -206,6 +206,9 @@ void *consumer(void *arg)
 				size -= sent;
 			}
 			cout << "Error: request not valid";
+			cout << endl;
+			cout << endl;
+			cout << endl;
 		}	
 		//delete [] &r.host;
 		close(proxyfd);
@@ -305,9 +308,7 @@ bool validateRequest(char *buffer)
 	}
 	
 	list.push_back(line.substr(0, pos - 1));
-	cout << list[0] << endl;
-	cout << list[1] << endl;
-	cout << list[2] << endl;
+
 	// If the list has more than 3 elements, method not 'GET',
 	//	or HTTP VERSION not '1.0' then request is not valid
 	if (list.size() > 3 || list[0] != METHOD || list[2] != HTTPVERSION)
@@ -320,14 +321,15 @@ bool validateRequest(char *buffer)
 
 void setRequest(Request *r, char* buffer)
 {
+	
 	// Make a duplicate of the buffer
 	char *copy = (char*)malloc(MAX_REQ_SIZE);
-	strncpy(copy, buffer, MAX_REQ_SIZE);
+	strcpy(copy, buffer);
 
 	string line(copy);
 	// Retrieve just the request line
 	line = line.substr(0, line.find("\r\n"));
-
+	
 	// Separate the request line by tokens using the delimiter 
 	//	and add them to a vector
 	string delimiter = " ";
@@ -340,41 +342,43 @@ void setRequest(Request *r, char* buffer)
 		line.erase(0, pos + delimiter.length());
 	}
 
-	r->buffer = buffer;
-	// Convert string to char buffer
+	// Find just the URI
+	string host = list[1].substr(list[1].find("/") + 2, list[1].size() - 8);
 
-	string uri = list[1].substr(list[1].find("/") + 2, list[1].size() - 8);
-
-	if(uri.substr(0,4) != "www.")
+	// If "www." is not part of uri already, then add it 
+	if(host.substr(0,4) != "www.")
 	{
-		uri = "www." + uri;
+		host = "www." + host;
 	}
-	
-	r->host = new char[uri.length() + 1];
-	strcpy(r->host, uri.c_str());
+
+	r->host = new char[host.length() + 1];
+	strcpy(r->host, host.c_str());
 
 	char *serverMsg = (char*)malloc(MAX_REQ_SIZE);
 	serverMsg = (char*)((METHOD + " / " + HTTPVERSION + "\r\nHost: " + r->host + "\r\n" + "Connection: close\r\n").c_str());
+	string initialLine(serverMsg);
 
-	// Make a duplicate of the buffer
-	char *copy2 = (char*)malloc(MAX_REQ_SIZE);
-	strncpy(copy2, buffer, MAX_REQ_SIZE);
-
-	string headers(copy2);
+	// Make a duplicate of the buffer to retrieve just the headers
+	char *headers = (char*)malloc(MAX_REQ_SIZE);
+	strcpy(headers, buffer);
+	string newHeaders(headers);
 
 	// Retrieve just the headers
-	headers.erase(0, headers.find("\r\n"));
-	cout << headers << endl;
+	newHeaders.erase(0, newHeaders.find("\r\n") + 2);
+
 	// Deletes Host and Connection from headers
-	int hostname = headers.find("Host: ");
-	//int connect = headers.find("Connection: ") - 12;
-	headers.erase(hostname, headers.find("\r\n", headers.find("Host: ")));
-	string total = serverMsg + headers;
-	headers.erase(0, total.find("\r\n"));
-	//headers.erase(connect, headers.find("\r\n", headers.find("Connection: ")));
+	newHeaders.erase(newHeaders.find("Host: "), newHeaders.find("\r\n", newHeaders.find("Host: ")) + 2);
+	newHeaders.erase(newHeaders.find("Connection: keep-alive"), 24);
+		
+	string total = initialLine + newHeaders;
+	//headers.erase(0, total.find("\r\n"));
 	
-	// Add the headers to server message
-	r->buffer = (char*)((total).c_str());
+	cout << total << endl;
+	
+	char *combined = new char[total.length() + 1];
+	strcpy(combined, total.c_str());
+	
+	r->buffer = combined;
 }
 
 // TEST: google.com www.google.com/ /www.google.com
