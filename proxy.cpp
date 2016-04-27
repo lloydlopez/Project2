@@ -341,7 +341,11 @@ void setRequest(Request *r, char* buffer)
 
 	r->buffer = buffer;
 	// Convert string to char buffer
+<<<<<<< HEAD
+	string uri = list[1].substr(list[1].find("/") + 2, list[1].size() - 1);
+=======
 	string uri = list[1].substr(list[1].find("/") + 2, list[1].size() - 8);
+>>>>>>> refs/remotes/origin/master
 
 	if(uri.substr(0,4) != "www.")
 	{
@@ -360,10 +364,17 @@ void setRequest(Request *r, char* buffer)
 	strncpy(copy2, buffer, MAX_REQ_SIZE);
 
 	string headers(copy2);
+
 	// Retrieve just the headers
 	headers.erase(0, headers.find("\r\n"));
+
+	// Deletes Host and Connection from headers
+	headers.erase(headers.find("Host: "), headers.find("\r\n"));
+	headers.erase(headers.find("Connection: "), headers.find("\r\n"));
+	
 
 	// Add the headers to server message
 	r->buffer = (char*)((serverMsg + headers).c_str());
 }
 
+// TEST: google.com www.google.com/ /www.google.com
