@@ -174,7 +174,6 @@ void *consumer(void *arg)
 			cout << "Completed first write!" << endl;
 			
 			while((numRead = read(proxyfd, recBuf, size)) && size > 0){
-				cout << "stuck here" << endl;
 				recBuf += numRead;
 				size -= numRead;
 				/*
@@ -192,7 +191,6 @@ void *consumer(void *arg)
 			}
 			cout << "Completed read/write!" << endl;
 			recBuf -= (MAX_REC_SIZE - size);
-			cout << recBuf << endl;
 			size = MAX_REC_SIZE;
 			while((sent = write(sockfd, recBuf, size)) && size > 0){
 				recBuf += sent;
