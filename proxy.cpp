@@ -366,10 +366,12 @@ void setRequest(Request *r, char* buffer)
 	int hostname = headers.find("Host: ");
 	//int connect = headers.find("Connection: ") - 12;
 	headers.erase(hostname, headers.find("\r\n", headers.find("Host: ")));
+	string total = serverMsg + headers;
+	headers.erase(0, total.find("\r\n"));
 	//headers.erase(connect, headers.find("\r\n", headers.find("Connection: ")));
 	
 	// Add the headers to server message
-	r->buffer = (char*)((serverMsg + headers).c_str());
+	r->buffer = (char*)((total).c_str());
 }
 
 // TEST: google.com www.google.com/ /www.google.com
