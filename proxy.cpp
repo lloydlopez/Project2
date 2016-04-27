@@ -122,7 +122,9 @@ void *consumer(void *arg)
 		if(validateRequest(reqBuf))
 		{
 			setRequest(&r, reqBuf);
+			
 			cout << r.buffer << endl;
+			
 			
 			//open socket to web server
 			memset(&hints, 0, sizeof hints);
@@ -341,11 +343,8 @@ void setRequest(Request *r, char* buffer)
 
 	r->buffer = buffer;
 	// Convert string to char buffer
-<<<<<<< HEAD
-	string uri = list[1].substr(list[1].find("/") + 2, list[1].size() - 1);
-=======
+
 	string uri = list[1].substr(list[1].find("/") + 2, list[1].size() - 8);
->>>>>>> refs/remotes/origin/master
 
 	if(uri.substr(0,4) != "www.")
 	{
