@@ -118,8 +118,7 @@ void *consumer(void *arg)
 			if (numRead == MAX_REQ_SIZE)
 				break;
 		}
-		cout << "BEFORE" << endl;
-		cout << r.buffer << endl;
+
 		reqBuf -= numRead;
 		if(validateRequest(reqBuf))
 		{
