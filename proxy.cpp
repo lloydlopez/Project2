@@ -122,6 +122,7 @@ void *consumer(void *arg)
 		if(validateRequest(reqBuf))
 		{
 			setRequest(&r, reqBuf);
+			cout << r.buffer << endl;
 			
 			
 			//open socket to web server
