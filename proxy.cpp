@@ -34,7 +34,7 @@ struct Request
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 queue<int> sockets;
 const int MAX_THREADS = 30;
-const int MAX_REQ_SIZE = 350;
+const int MAX_REQ_SIZE = 2048;
 const int MAX_REC_SIZE = 100000; 
 const string METHOD = "GET";
 const string HTTPVERSION = "HTTP/1.0";
@@ -119,9 +119,11 @@ void *consumer(void *arg)
 				break;
 		}
 		reqBuf -= numRead;
+		cout << reqBuf << endl;
 		if(validateRequest(reqBuf))
 		{
 			setRequest(&r, reqBuf);
+			//cout << r.buffer << endl;
 			
 			
 			//open socket to web server
@@ -159,7 +161,6 @@ void *consumer(void *arg)
 			numRead = 0;
 			
 			cout << "Created new socket!" << endl;
-			
 			while((sent = write(proxyfd, r.buffer, bufSize)) && bufSize > 0){
 				if(sent < 0)
 					perror("Write Failed");
@@ -188,7 +189,6 @@ void *consumer(void *arg)
 			}
 			cout << "Completed read/write!" << endl;
 			recBuf -= (MAX_REC_SIZE - size);
-			cout << recBuf << endl;
 			size = MAX_REC_SIZE;
 			while((sent = write(sockfd, recBuf, size)) && size > 0){
 				recBuf += sent;
@@ -372,6 +372,7 @@ void setRequest(Request *r, char* buffer)
 	
 	// Add the headers to server message
 	r->buffer = (char*)((total).c_str());
+	//cout << r->buffer << endl;
 }
 
 // TEST: google.com www.google.com/ /www.google.com
