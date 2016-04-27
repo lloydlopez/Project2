@@ -122,8 +122,10 @@ void *consumer(void *arg)
 		reqBuf -= numRead;
 		if(validateRequest(reqBuf))
 		{
+			cout << "BEFORE--------------" << endl;
+			cout << r.buffer << endl;
 			setRequest(&r, reqBuf);
-			cout << "AFTER" << endl;
+			cout << "AFTER---------------" << endl;
 			cout << r.buffer << endl;
 			
 			
