@@ -122,9 +122,7 @@ void *consumer(void *arg)
 		if(validateRequest(reqBuf))
 		{
 			setRequest(&r, reqBuf);
-			cout << r.buffer << endl;
-			
-			
+
 			//open socket to web server
 			memset(&hints, 0, sizeof hints);
 			hints.ai_family = AF_UNSPEC;
@@ -148,7 +146,7 @@ void *consumer(void *arg)
 
 				break;
 			}
-
+			cout << r.buffer << endl;
 			if (p == NULL) {
 				fprintf(stderr, "client: failed to connect\n");
 				return NULL;
@@ -157,18 +155,20 @@ void *consumer(void *arg)
 			freeaddrinfo(servinfo);
 			
 			size = MAX_REC_SIZE;
+			bufSize = MAX_REQ_SIZE;
 			numRead = 0;
 			
 			cout << "Created new socket!" << endl;
-			
 			while((sent = write(proxyfd, r.buffer, bufSize)) && bufSize > 0){
 				if(sent < 0)
 					perror("Write Failed");
 				r.buffer += sent;
 				bufSize -= sent;
 			}
+			r.buffer -= (MAX_REQ_SIZE - bufSize);
 			
 			cout << "Completed first write!" << endl;
+			
 			
 			while((numRead = read(proxyfd, recBuf, size)) && size > 0){
 				cout << "stuck here" << endl;
@@ -195,6 +195,7 @@ void *consumer(void *arg)
 				recBuf += sent;
 				size -= sent;
 			}
+			recBuf -= (MAX_REC_SIZE-size);
 			cout << "done!" << endl;
 			
 		} else {
@@ -204,6 +205,7 @@ void *consumer(void *arg)
 				ptr += sent;
 				size -= sent;
 			}
+			ptr -= (MAX_REQ_SIZE);
 			cout << "Error: request not valid";
 		}	
 		//delete [] &r.host;
