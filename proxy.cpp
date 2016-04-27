@@ -34,7 +34,7 @@ struct Request
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 queue<int> sockets;
 const int MAX_THREADS = 30;
-const int MAX_REQ_SIZE = 350;
+const int MAX_REQ_SIZE = 2048;
 const int MAX_REC_SIZE = 100000; 
 const string METHOD = "GET";
 const string HTTPVERSION = "HTTP/1.0";
@@ -127,10 +127,18 @@ void *consumer(void *arg)
 			memset(&hints, 0, sizeof hints);
 			hints.ai_family = AF_UNSPEC;
 			hints.ai_socktype = SOCK_STREAM;
+			char* newBuf = (char*)malloc(2048);
+			for(int i = 0; i < 2048; i++){
+				newBuf = r.buffer;
+				newBuf++;
+				r.buffer++;
+			}
+			newBuf -= 2048;
 			if((rv = getaddrinfo(r.host, HTTPPORT, &hints, &servinfo)) != 0) {
 				cout << "getaddrinfo failed with code " << rv;
 				return NULL;
 			}
+			cout << newBuf << endl;
 			for(p = servinfo; p != NULL; p = p->ai_next) {
 				if ((proxyfd = socket(p->ai_family, p->ai_socktype,
 				p->ai_protocol)) == -1) {
@@ -146,7 +154,6 @@ void *consumer(void *arg)
 
 				break;
 			}
-			cout << r.buffer << endl;
 			if (p == NULL) {
 				fprintf(stderr, "client: failed to connect\n");
 				return NULL;
@@ -159,13 +166,13 @@ void *consumer(void *arg)
 			numRead = 0;
 			
 			cout << "Created new socket!" << endl;
-			while((sent = write(proxyfd, r.buffer, bufSize)) && bufSize > 0){
+			while((sent = write(proxyfd, newBuf, bufSize)) && bufSize > 0){
 				if(sent < 0)
 					perror("Write Failed");
-				r.buffer += sent;
+				newBuf += sent;
 				bufSize -= sent;
 			}
-			r.buffer -= (MAX_REQ_SIZE - bufSize);
+			newBuf -= (MAX_REQ_SIZE - bufSize);
 			
 			cout << "Completed first write!" << endl;
 			
