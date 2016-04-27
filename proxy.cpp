@@ -303,7 +303,9 @@ bool validateRequest(char *buffer)
 	}
 	
 	list.push_back(line.substr(0, pos - 1));
-
+	cout << list[0] << endl;
+	cout << list[1] << endl;
+	cout << list[2] << endl;
 	// If the list has more than 3 elements, method not 'GET',
 	//	or HTTP VERSION not '1.0' then request is not valid
 	if (list.size() > 3 || list[0] != METHOD || list[2] != HTTPVERSION)
