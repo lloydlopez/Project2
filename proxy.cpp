@@ -28,7 +28,7 @@ using namespace std;
 struct Request
 {
 	char* buffer;
-	const char* host;
+	char* host;
 };
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
@@ -93,6 +93,7 @@ void *consumer(void *arg)
 	int size = MAX_REQ_SIZE;
 	bool signal = false;
 	int bufSize = MAX_REQ_SIZE;
+	struct Request r;
 
 	while (1) {
 		sem_wait(&mySemaphore);
@@ -120,14 +121,14 @@ void *consumer(void *arg)
 		reqBuf -= numRead;
 		if(validateRequest(reqBuf))
 		{
-			struct Request r;
 			setRequest(&r, reqBuf);
-			cout << reqBuf << endl;
+			cout << r.buffer << endl;
 			
 			//open socket to web server
 			memset(&hints, 0, sizeof hints);
 			hints.ai_family = AF_UNSPEC;
 			hints.ai_socktype = SOCK_STREAM;
+			cout << r.host << endl;
 			if((rv = getaddrinfo(r.host, HTTPPORT, &hints, &servinfo)) != 0) {
 				cout << "getaddrinfo failed with code " << rv;
 				return NULL;
@@ -159,7 +160,6 @@ void *consumer(void *arg)
 			numRead = 0;
 			
 			cout << "Created new socket!" << endl;
-			sleep(20);
 			
 			while((sent = write(proxyfd, r.buffer, bufSize)) && bufSize > 0){
 				if(sent < 0)
@@ -169,9 +169,9 @@ void *consumer(void *arg)
 			}
 			
 			cout << "Completed first write!" << endl;
-			sleep(5);
 			
 			while((numRead = read(proxyfd, recBuf, size))){
+				cout << recBuf;
 				recBuf += numRead;
 				size -= numRead;
 				if(size == 0){
@@ -186,7 +186,6 @@ void *consumer(void *arg)
 				}
 			}
 			cout << "Completed read/write!" << endl;
-			sleep(5);
 			size = numRead;
 			recBuf -= numRead;
 			while((sent = write(sockfd, recBuf, size)) && size > 0){
@@ -194,7 +193,6 @@ void *consumer(void *arg)
 				size -= sent;
 			}
 			cout << "done!" << endl;
-			sleep(5);
 			
 		} else {
 			size = sizeof(ERROR);
@@ -205,7 +203,8 @@ void *consumer(void *arg)
 			}
 			cout << "Error: request not valid";
 		}	
-		
+		//delete [] &r.host;
+		close(proxyfd);
 		close(sockfd);
 	}
 
@@ -342,14 +341,20 @@ void setRequest(Request *r, char* buffer)
 
 	r->buffer = buffer;
 	// Convert string to char buffer
+<<<<<<< HEAD
 	string uri = list[1].substr(list[1].find("/") + 2, list[1].size() - 1);
+=======
+	string uri = list[1].substr(list[1].find("/") + 2, list[1].size() - 8);
+>>>>>>> refs/remotes/origin/master
 
 	if(uri.substr(0,4) != "www.")
 	{
 		uri = "www." + uri;
 	}
-
-	r->host = uri.c_str();
+	
+	r->host = new char[uri.length() + 1];
+	strcpy(r->host, uri.c_str());
+	//r->host = uri.c_str();
 
 	char *serverMsg = (char*)malloc(MAX_REC_SIZE);
 	serverMsg = (char*)((METHOD + " / " + HTTPVERSION + "\r\nHost: " + r->host + "\r\n" + "Connection: close\r\n").c_str());
