@@ -35,7 +35,7 @@ pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 queue<int> sockets;
 const int MAX_THREADS = 30;
 const int MAX_REQ_SIZE = 350;
-const int MAX_REC_SIZE = 32768; 
+const int MAX_REC_SIZE = 100000; 
 const string METHOD = "GET";
 const string HTTPVERSION = "HTTP/1.0";
 char* ERROR = (char*)"500 'Internal Error'";
@@ -122,13 +122,12 @@ void *consumer(void *arg)
 		if(validateRequest(reqBuf))
 		{
 			setRequest(&r, reqBuf);
-			cout << r.buffer << endl;
+			
 			
 			//open socket to web server
 			memset(&hints, 0, sizeof hints);
 			hints.ai_family = AF_UNSPEC;
 			hints.ai_socktype = SOCK_STREAM;
-			cout << r.host << endl;
 			if((rv = getaddrinfo(r.host, HTTPPORT, &hints, &servinfo)) != 0) {
 				cout << "getaddrinfo failed with code " << rv;
 				return NULL;
@@ -170,10 +169,11 @@ void *consumer(void *arg)
 			
 			cout << "Completed first write!" << endl;
 			
-			while((numRead = read(proxyfd, recBuf, size))){
-				cout << recBuf;
+			while((numRead = read(proxyfd, recBuf, size)) && size > 0){
+				cout << "stuck here" << endl;
 				recBuf += numRead;
 				size -= numRead;
+				/*
 				if(size == 0){
 					recBuf -= MAX_REC_SIZE;
 					size += MAX_REC_SIZE;
@@ -184,10 +184,12 @@ void *consumer(void *arg)
 					recBuf -= MAX_REC_SIZE;
 					size += MAX_REC_SIZE;
 				}
+				*/
 			}
 			cout << "Completed read/write!" << endl;
-			size = numRead;
-			recBuf -= numRead;
+			recBuf -= (MAX_REC_SIZE - size);
+			cout << recBuf << endl;
+			size = MAX_REC_SIZE;
 			while((sent = write(sockfd, recBuf, size)) && size > 0){
 				recBuf += sent;
 				size -= sent;
@@ -309,11 +311,6 @@ bool validateRequest(char *buffer)
 		return false;
 	}
 
-	//Debugging
-	//cout << line << endl;
-	//cout << list[0] << endl;
-	//cout << list[2] << endl;
-	//cout << "YUP" << endl;
 	return true;
 }
 
@@ -341,11 +338,8 @@ void setRequest(Request *r, char* buffer)
 
 	r->buffer = buffer;
 	// Convert string to char buffer
-<<<<<<< HEAD
-	string uri = list[1].substr(list[1].find("/") + 2, list[1].size() - 1);
-=======
+
 	string uri = list[1].substr(list[1].find("/") + 2, list[1].size() - 8);
->>>>>>> refs/remotes/origin/master
 
 	if(uri.substr(0,4) != "www.")
 	{
@@ -369,10 +363,11 @@ void setRequest(Request *r, char* buffer)
 	headers.erase(0, headers.find("\r\n"));
 
 	// Deletes Host and Connection from headers
-	headers.erase(headers.find("Host: "), headers.find("\r\n"));
-	headers.erase(headers.find("Connection: "), headers.find("\r\n"));
+	int hostname = headers.find("Host: ");
+	//int connect = headers.find("Connection: ") - 12;
+	headers.erase(hostname, headers.find("\r\n", headers.find("Host: ")));
+	//headers.erase(connect, headers.find("\r\n", headers.find("Connection: ")));
 	
-
 	// Add the headers to server message
 	r->buffer = (char*)((serverMsg + headers).c_str());
 }
