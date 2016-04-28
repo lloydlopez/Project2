@@ -36,7 +36,7 @@ queue<int> sockets;
 const int ERRORSIZE = 20;
 const int MAX_THREADS = 30;
 const int MAX_REQ_SIZE = 2048;
-const int MAX_REC_SIZE = 1000000; 
+const int MAX_REC_SIZE = 100000; 
 const string METHOD = "GET";
 const string HTTPVERSION = "HTTP/1.0";
 char* ERROR = (char*)"500 'Internal Error'";
@@ -140,12 +140,10 @@ void *consumer(void *arg)
 			hints.ai_family = AF_UNSPEC;
 			hints.ai_socktype = SOCK_STREAM;
 			cout << '"' << r.host << '"' << endl;
-			sleep(5);
 			if((rv = getaddrinfo(r.host, HTTPPORT, &hints, &servinfo)) != 0) {
 				perror("getaddrinfo");
 				returnThread = true;
 			}
-			cout << returnThread << endl;
 			if(!returnThread){
 				for(p = servinfo; p != NULL; p = p->ai_next) {
 					if ((proxyfd = socket(p->ai_family, p->ai_socktype,
