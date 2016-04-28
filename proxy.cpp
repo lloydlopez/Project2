@@ -44,7 +44,7 @@ const char* HTTPPORT = (char*)"80";
 sem_t mySemaphore;
 pthread_t pro;
 vector<pthread_t> threads;
-int availableThreads = 0;
+int activeThreads = 0;
 
 bool validateRequest(char *buffer);
 void setRequest(Request *r, char *buffer);
@@ -98,14 +98,17 @@ void *consumer(void *arg)
 	struct Request r;
 	bool returnThread = false;
 	char* ptr = ERROR;
+	
 
 	while (1) {
 		returnThread = false;
+
 		sem_wait(&mySemaphore);
 		pthread_mutex_lock(&lock);
 		sockfd = sockets.front();
 		sockets.pop();
-		availableThreads++;
+		activeThreads++;
+
 		pthread_mutex_unlock(&lock);
 		size = MAX_REQ_SIZE;
 
@@ -130,29 +133,28 @@ void *consumer(void *arg)
 				break;
 		}
 		reqBuf -= (MAX_REQ_SIZE-size);
-
-		cout << reqBuf << endl;
 		
 		if(validateRequest(reqBuf) && !returnThread)
 		{
 			setRequest(&r, reqBuf);
-			cout << r.buffer << endl;
 			//open socket to web server
 			memset(&hints, 0, sizeof hints);
 			hints.ai_family = AF_UNSPEC;
 			hints.ai_socktype = SOCK_STREAM;
-			cout << '"' << r.host << '"' << endl;
+			
 			char* newBuf = (char*)malloc(MAX_REQ_SIZE);
 			for(int i = 0; i < MAX_REQ_SIZE; i++){
 				newBuf = r.buffer;
 				newBuf++;
 				r.buffer++;
 			}
+			
 			newBuf -= MAX_REQ_SIZE;
+
 			if((rv = getaddrinfo(r.host, HTTPPORT, &hints, &servinfo)) != 0) {
-				perror("getaddrinfo");
 				returnThread = true;
 			}
+			
 			if(!returnThread){
 				for(p = servinfo; p != NULL; p = p->ai_next) {
 					if ((proxyfd = socket(p->ai_family, p->ai_socktype,
@@ -180,29 +182,31 @@ void *consumer(void *arg)
 					
 					size = MAX_REC_SIZE;
 					numRead = 0;
-					cout << newBuf << endl;
+					
 					while((sent = write(proxyfd, newBuf, bufSize)) && bufSize > 0){
 						if(sent < 0)
 							perror("Write Failed");
 						newBuf += sent;
 						bufSize -= sent;
 					}
+
 					
 					while((numRead = read(proxyfd, recBuf, size)) && size > 0){
-						cout << "made it here" << endl;
 						recBuf += numRead;
 						size -= numRead;
 					}
 					recBuf -= (MAX_REC_SIZE - size);
-					size = MAX_REC_SIZE;
-					cout << recBuf << endl;
+					size = (MAX_REC_SIZE - size);
+					
 					while((sent = write(sockfd, recBuf, size)) && size > 0){
 						if(sent < 0){
+							
 							break;
 						}
 						recBuf += sent;
 						size -= sent;
 					}
+										
 					sleep(1);
 				}
 			}
@@ -217,11 +221,13 @@ void *consumer(void *arg)
 			}
 			ptr -= (ERRORSIZE - size);
 		}	
+		
 		delete [] r.host;
 		close(proxyfd);
 		close(sockfd);
 		pthread_mutex_lock(&lock);
-		availableThreads--;
+		activeThreads--;
+		cout << "DONEEEEEEEEEEEEEEEEEEEEEEEE" << endl;
 		pthread_mutex_unlock(&lock);
 	}
 
@@ -288,7 +294,7 @@ void *producer(void *arg)
 		sockets.push(new_fd);
 		pthread_mutex_unlock(&lock);
 		pthread_mutex_lock(&lock);
-		if(availableThreads < 30){
+		if(activeThreads < 30){
 			pthread_mutex_unlock(&lock);
 			sem_post(&mySemaphore);
 		}else
@@ -399,7 +405,7 @@ void setRequest(Request *r, char* buffer)
 	strcpy(combined, total.c_str());
 	
 	r->buffer = combined;
-	delete [] combined;
+	delete[] combined;
 }
 
 
