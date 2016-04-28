@@ -103,21 +103,22 @@ void *consumer(void *arg)
 	struct Request r;
 	bool returnThread = false;
 	char* ptr = ERROR;
-	
+
 	// Receive and Request buffers
 	char *recBuf = (char*)malloc(MAX_REC_SIZE);
 	char *reqBuf = (char*)malloc(MAX_REQ_SIZE);
-	
 
 	while (1) {
 		
 		// A critical section
 		returnThread = false;
+
 		sem_wait(&mySemaphore);
 		pthread_mutex_lock(&lock);
 		sockfd = sockets.front();
 		sockets.pop();
 		activeThreads++;
+
 		pthread_mutex_unlock(&lock);
 		size = MAX_REQ_SIZE;
 
@@ -150,8 +151,8 @@ void *consumer(void *arg)
 		if(validateRequest(reqBuf) && !returnThread)
 		{
 			setRequest(&r, reqBuf);
-			
-			// Open socket to web server
+
+			//open socket to web server
 			memset(&hints, 0, sizeof hints);
 			hints.ai_family = AF_UNSPEC;
 			hints.ai_socktype = SOCK_STREAM;
@@ -205,6 +206,7 @@ void *consumer(void *arg)
 						bufSize -= sent;
 					}
 
+
 					// Read response from server
 					while((numRead = read(proxyfd, recBuf, size)) && size > 0){
 						recBuf += numRead;
@@ -214,10 +216,12 @@ void *consumer(void *arg)
 					recBuf -= (MAX_REC_SIZE - size);
 					size = (MAX_REC_SIZE - size);
 					
+
 					// Send response to client
 					while((sent = write(sockfd, recBuf, size)) && size > 0){
 						
 						if(sent < 0){
+							
 							break;
 						}
 						recBuf += sent;
@@ -320,7 +324,7 @@ void *producer(void *arg)
 		sockets.push(new_fd);
 		pthread_mutex_unlock(&lock);
 		pthread_mutex_lock(&lock);
-		
+
 		if(activeThreads < 30){
 			pthread_mutex_unlock(&lock);
 			sem_post(&mySemaphore);
