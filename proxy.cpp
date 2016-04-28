@@ -1,4 +1,5 @@
-// proxy.cpp
+// James Baracca and Lloyd Lopez
+// proxy.cpp version 1
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,10 +42,11 @@ const string METHOD = "GET";
 const string HTTPVERSION = "HTTP/1.0";
 char* ERROR = (char*)"500 'Internal Error'";
 const char* HTTPPORT = (char*)"80";
+
 sem_t mySemaphore;
 pthread_t pro;
 vector<pthread_t> threads;
-int availableThreads = 0;
+int activeThreads = 0;
 
 bool validateRequest(char *buffer);
 void setRequest(Request *r, char *buffer);
@@ -59,9 +61,11 @@ int main(int argc, char *argv[])
 	int cid[MAX_THREADS];
 	sem_init(&mySemaphore, 0, 0);
 
+	// Create producer thread
 	if ((pid = pthread_create(&pro, NULL, &producer, (void*)argv[1])))
 		printf("producer is broken");
 
+	// Create consumer threads
 	for (int i = 0; i < MAX_THREADS; i++) {
 		pthread_t new_thread;
 		if ((cid[i] = pthread_create(&new_thread, NULL, &consumer, (void*)argv[1])))
@@ -69,6 +73,7 @@ int main(int argc, char *argv[])
 		threads.push_back(new_thread);
 	}
 
+	// Wait for all threads to finish
 	for (int i = 0; i < MAX_THREADS; i++) {
 		if (pthread_join(threads[i], NULL)) {
 			cout << "Join error" << endl;
@@ -78,6 +83,8 @@ int main(int argc, char *argv[])
 	if (pthread_join(pro, NULL)) {
 		cout << "Join error" << endl;
 	}
+	
+	// Cleanup
 	sem_destroy(&mySemaphore);
 	pthread_mutex_destroy(&lock);
 	return 0;
@@ -88,24 +95,29 @@ void *consumer(void *arg)
 {
 	int sockfd, proxyfd, rv;
 	struct addrinfo hints, *servinfo, *p;
- 	char *recBuf = (char*)malloc(MAX_REC_SIZE);
 	int numRead = 0;
 	int sent = 0;
-	char *reqBuf = (char*)malloc(MAX_REQ_SIZE);
 	int size = MAX_REQ_SIZE;
 	bool signal = false;
 	int bufSize = MAX_REQ_SIZE;
 	struct Request r;
 	bool returnThread = false;
 	char* ptr = ERROR;
+	
+	// Receive and Request buffers
+	char *recBuf = (char*)malloc(MAX_REC_SIZE);
+	char *reqBuf = (char*)malloc(MAX_REQ_SIZE);
+	
 
 	while (1) {
+		
+		// A critical section
 		returnThread = false;
 		sem_wait(&mySemaphore);
 		pthread_mutex_lock(&lock);
 		sockfd = sockets.front();
 		sockets.pop();
-		availableThreads++;
+		activeThreads++;
 		pthread_mutex_unlock(&lock);
 		size = MAX_REQ_SIZE;
 
@@ -117,6 +129,8 @@ void *consumer(void *arg)
 			}
 			reqBuf += numRead;
 			size -= numRead;
+			
+			// Find end of request with \r\n\r\n
 			if (numRead >= 4) {
 				char* temp = reqBuf - numRead;
 				string buf(temp);
@@ -129,30 +143,32 @@ void *consumer(void *arg)
 			if (numRead == MAX_REQ_SIZE)
 				break;
 		}
-		reqBuf -= (MAX_REQ_SIZE-size);
-
-		cout << reqBuf << endl;
 		
+		reqBuf -= (MAX_REQ_SIZE-size);
+		
+		// Validate client request
 		if(validateRequest(reqBuf) && !returnThread)
 		{
 			setRequest(&r, reqBuf);
-			cout << r.buffer << endl;
-			//open socket to web server
+			
+			// Open socket to web server
 			memset(&hints, 0, sizeof hints);
 			hints.ai_family = AF_UNSPEC;
 			hints.ai_socktype = SOCK_STREAM;
-			cout << '"' << r.host << '"' << endl;
+			
 			char* newBuf = (char*)malloc(MAX_REQ_SIZE);
 			for(int i = 0; i < MAX_REQ_SIZE; i++){
 				newBuf = r.buffer;
 				newBuf++;
 				r.buffer++;
 			}
+			
 			newBuf -= MAX_REQ_SIZE;
+
 			if((rv = getaddrinfo(r.host, HTTPPORT, &hints, &servinfo)) != 0) {
-				perror("getaddrinfo");
 				returnThread = true;
 			}
+			
 			if(!returnThread){
 				for(p = servinfo; p != NULL; p = p->ai_next) {
 					if ((proxyfd = socket(p->ai_family, p->ai_socktype,
@@ -180,57 +196,68 @@ void *consumer(void *arg)
 					
 					size = MAX_REC_SIZE;
 					numRead = 0;
-					cout << newBuf << endl;
+					
+					// Send request to server
 					while((sent = write(proxyfd, newBuf, bufSize)) && bufSize > 0){
 						if(sent < 0)
 							perror("Write Failed");
 						newBuf += sent;
 						bufSize -= sent;
 					}
-					
+
+					// Read response from server
 					while((numRead = read(proxyfd, recBuf, size)) && size > 0){
-						cout << "made it here" << endl;
 						recBuf += numRead;
 						size -= numRead;
 					}
+					
 					recBuf -= (MAX_REC_SIZE - size);
-					size = MAX_REC_SIZE;
-					cout << recBuf << endl;
+					size = (MAX_REC_SIZE - size);
+					
+					// Send response to client
 					while((sent = write(sockfd, recBuf, size)) && size > 0){
+						
 						if(sent < 0){
 							break;
 						}
 						recBuf += sent;
 						size -= sent;
 					}
+										
 					sleep(1);
 				}
 			}
+			
 		} else if(!returnThread){
 			returnThread = true;
 		}
+		
+		// Write error to client
 		if(returnThread) {
 			size = ERRORSIZE;
 			while((sent = write(sockfd, ptr, size)) && size > 0){
 				ptr += sent;
 				size -= sent;
 			}
+			
 			ptr -= (ERRORSIZE - size);
 		}	
-		delete [] r.host;
+		
 		close(proxyfd);
 		close(sockfd);
 		pthread_mutex_lock(&lock);
-		availableThreads--;
+		activeThreads--;
 		pthread_mutex_unlock(&lock);
 	}
 
 	return NULL;
 }
 
-// One producer thread  - need to include port for getaddrinfo
+// One producer thread  
 void *producer(void *arg)
 {
+	
+	// Set-up connection
 	char* port = (char*)arg;
 	int sockfd, new_fd, rv;
 	struct addrinfo hints, *servinfo, *p;
@@ -278,38 +305,47 @@ void *producer(void *arg)
 			perror("accept");
 			continue;
 		}
+		
 		pthread_mutex_lock(&lock);
+		
+		// Only 30 open sockets
 		if(sockets.size() > 30){
 			pthread_mutex_unlock(&lock);
 			sleep(2);
+			
 		}else
+		
 			pthread_mutex_unlock(&lock);
 		pthread_mutex_lock(&lock);
 		sockets.push(new_fd);
 		pthread_mutex_unlock(&lock);
 		pthread_mutex_lock(&lock);
-		if(availableThreads < 30){
+		
+		if(activeThreads < 30){
 			pthread_mutex_unlock(&lock);
 			sem_post(&mySemaphore);
+			
 		}else
 			pthread_mutex_unlock(&lock);
 	}
 	return NULL;
 }
 
+// Validates client request
 bool validateRequest(char *buffer)
 {
 	string tempBuf(buffer);
 	if (buffer == NULL || tempBuf.length() < 1)
 	{
+
 		return false;
 	}
 	
 	// Make a duplicate of the buffer
 	char *copy = (char*)malloc(MAX_REQ_SIZE);
 	strncpy(copy, buffer, MAX_REQ_SIZE);
-
 	string line(copy);
+	
 	// Retrieve just the request line
 	line = line.substr(0, line.find("\r\n"));
 
@@ -319,7 +355,6 @@ bool validateRequest(char *buffer)
 	vector<string> list;
 	size_t pos = 0;
 	
-	// WHAT IF THERE'S MORE THAN 3 ELEMENTS? HOW TO SEE?
 	while ((pos = line.find(delimiter)) != string::npos)
 	{
 		list.push_back(line.substr(0, pos));
@@ -332,6 +367,7 @@ bool validateRequest(char *buffer)
 	//	or HTTP VERSION not '1.0' then request is not valid
 	if (list.size() > 3 || list[0] != METHOD || list[2] != HTTPVERSION)
 	{
+
 		return false;
 	}
 
@@ -340,7 +376,6 @@ bool validateRequest(char *buffer)
 
 void setRequest(Request *r, char* buffer)
 {
-	
 	// Make a duplicate of the buffer
 	char *copy = (char*)malloc(MAX_REQ_SIZE);
 	strcpy(copy, buffer);
@@ -372,7 +407,7 @@ void setRequest(Request *r, char* buffer)
 		host = "www." + host;
 	}
 
-	r->host = new char[host.length() + 1];
+	r->host = (char*)malloc(host.length() + 1);
 	strcpy(r->host, host.c_str());
 
 	char *serverMsg = (char*)malloc(MAX_REQ_SIZE);
@@ -394,15 +429,13 @@ void setRequest(Request *r, char* buffer)
 	string total = initialLine + newHeaders;
 	//headers.erase(0, total.find("\r\n"));
 	
-	
-	char *combined = new char[total.length() + 1];
+	char *combined = (char*)malloc(total.length() + 1);
 	strcpy(combined, total.c_str());
 	
 	r->buffer = combined;
-	delete [] combined;
 }
 
-
+// Signal handler
 void int_handler(int x){
   	for (int i = 0; i < MAX_THREADS; i++) {
 		if (pthread_cancel(threads[i])) {
