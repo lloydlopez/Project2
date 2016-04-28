@@ -20,7 +20,7 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <csignal>
-#include <string>
+#include <string.h>
 
 
 using namespace std;
@@ -33,12 +33,9 @@ struct Request
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 queue<int> sockets;
+const int ERRORSIZE = 20;
 const int MAX_THREADS = 30;
-<<<<<<< HEAD
 const int MAX_REQ_SIZE = 2048;
-=======
-const int MAX_REQ_SIZE = 4096;
->>>>>>> origin/master
 const int MAX_REC_SIZE = 100000; 
 const string METHOD = "GET";
 const string HTTPVERSION = "HTTP/1.0";
@@ -50,7 +47,6 @@ bool validateRequest(char *buffer);
 void setRequest(Request *r, char *buffer);
 void *producer(void *arg);
 void *consumer(void *arg);
-void *hello(void *arg);
 
 int main(int argc, char *argv[])
 {
@@ -73,13 +69,11 @@ int main(int argc, char *argv[])
 	for (int i = 0; i < MAX_THREADS; i++) {
 		if (pthread_join(threads[i], NULL)) {
 			cout << "Join error" << endl;
-			pthread_cancel(cid[i]);
 		}
 	}
 
 	if (pthread_join(pro, NULL)) {
 		cout << "Join error" << endl;
-		pthread_cancel(pid);
 	}
 
 	return 0;
@@ -98,16 +92,23 @@ void *consumer(void *arg)
 	bool signal = false;
 	int bufSize = MAX_REQ_SIZE;
 	struct Request r;
+	bool returnThread = false;
 
 	while (1) {
+		returnThread = false;
 		sem_wait(&mySemaphore);
 		pthread_mutex_lock(&lock);
 		sockfd = sockets.front();
 		sockets.pop();
 		pthread_mutex_unlock(&lock);
+		size = MAX_REQ_SIZE;
 
-		while (!signal && (size > 0)) {
-			numRead = read(sockfd, reqBuf, size);
+		while (!signal && (size > 0) && (numRead = read(sockfd, reqBuf, size))) {
+			if(numRead < 0){
+				returnThread = true;
+				close(sockfd);
+				break;
+			}
 			reqBuf += numRead;
 			size -= numRead;
 			if (numRead >= 4) {
@@ -122,113 +123,106 @@ void *consumer(void *arg)
 			if (numRead == MAX_REQ_SIZE)
 				break;
 		}
+		reqBuf -= (MAX_REQ_SIZE-size);
 
-		reqBuf -= numRead;
-		if(validateRequest(reqBuf))
+		if(validateRequest(reqBuf) && !returnThread)
 		{
-			
 			setRequest(&r, reqBuf);
+			cout << r.buffer << endl;
 			
 			//open socket to web server
 			memset(&hints, 0, sizeof hints);
 			hints.ai_family = AF_UNSPEC;
 			hints.ai_socktype = SOCK_STREAM;
-			char* newBuf = (char*)malloc(2048);
-			for(int i = 0; i < 2048; i++){
-				newBuf = r.buffer;
-				newBuf++;
-				r.buffer++;
-			}
-			newBuf -= 2048;
+			cout << r.host << endl;
 			if((rv = getaddrinfo(r.host, HTTPPORT, &hints, &servinfo)) != 0) {
-				cout << "getaddrinfo failed with code " << rv;
-				return NULL;
+				perror("host resolve issue");
+				returnThread = true;
 			}
-			cout << newBuf << endl;
-			for(p = servinfo; p != NULL; p = p->ai_next) {
-				if ((proxyfd = socket(p->ai_family, p->ai_socktype,
-				p->ai_protocol)) == -1) {
-					perror("client: socket");
-					continue;
-				}
+			if(!returnThread){
+				for(p = servinfo; p != NULL; p = p->ai_next) {
+					if ((proxyfd = socket(p->ai_family, p->ai_socktype,
+					p->ai_protocol)) == -1) {
+						perror("client: socket");
+						continue;
+					}
 
-				if (connect(proxyfd, p->ai_addr, p->ai_addrlen) == -1) {
+					if (connect(proxyfd, p->ai_addr, p->ai_addrlen) == -1) {
+						close(proxyfd);
+						perror("client: connect");
+						continue;
+					}
+
+					break;
+				}
+				if (p == NULL) {
+					fprintf(stderr, "client: failed to connect\n");
+					returnThread = true;
 					close(proxyfd);
-					perror("client: connect");
-					continue;
+					close(sockfd);
 				}
-
-				break;
-			}
-<<<<<<< HEAD
-=======
-
->>>>>>> origin/master
-			if (p == NULL) {
-				fprintf(stderr, "client: failed to connect\n");
-				return NULL;
-			}
-
-			freeaddrinfo(servinfo);
-			
-			size = MAX_REC_SIZE;
-			numRead = 0;
-			
-			cout << "Created new socket!" << endl;
-<<<<<<< HEAD
-			while((sent = write(proxyfd, newBuf, bufSize)) && bufSize > 0){
-=======
-			
-			while((sent = write(proxyfd, r.buffer, bufSize)) && bufSize > 0){
->>>>>>> origin/master
-				if(sent < 0)
-					perror("Write Failed");
-				newBuf += sent;
-				bufSize -= sent;
-			}
-<<<<<<< HEAD
-			newBuf -= (MAX_REQ_SIZE - bufSize);
-=======
->>>>>>> origin/master
-			
-			cout << "Completed first write!" << endl;
-			
-			while((numRead = read(proxyfd, recBuf, size)) && size > 0){
-				recBuf += numRead;
-				size -= numRead;
-				/*
-				if(size == 0){
-					recBuf -= MAX_REC_SIZE;
-					size += MAX_REC_SIZE;
+				if(!returnThread){
+					freeaddrinfo(servinfo);
+					
+					size = MAX_REC_SIZE;
+					numRead = 0;
+					
+					cout << "Created new socket!" << endl;
+					
+					while((sent = write(proxyfd, r.buffer, bufSize)) && bufSize > 0){
+						if(sent < 0)
+							perror("Write Failed");
+						r.buffer += sent;
+						bufSize -= sent;
+					}
+					
+					cout << "Completed first write!" << endl;
+					
+					while((numRead = read(proxyfd, recBuf, size)) && size > 0){
+						recBuf += numRead;
+						size -= numRead;
+						/*
+						if(size == 0){
+							recBuf -= MAX_REC_SIZE;
+							size += MAX_REC_SIZE;
+							while((sent = write(sockfd, recBuf, size)) && size > 0){
+								recBuf += sent;
+								size -= sent;
+							}
+							recBuf -= MAX_REC_SIZE;
+							size += MAX_REC_SIZE;
+						}
+						*/
+					}
+					cout << "Completed read/write!" << endl;
+					recBuf -= (MAX_REC_SIZE - size);
+					size = MAX_REC_SIZE;
 					while((sent = write(sockfd, recBuf, size)) && size > 0){
+						if(sent < 0){
+							break;
+						}
 						recBuf += sent;
 						size -= sent;
 					}
-					recBuf -= MAX_REC_SIZE;
-					size += MAX_REC_SIZE;
+					sleep(1);
+					cout << "done!" << endl;
+					cout << endl;
+					cout << endl;
+					cout << endl;
 				}
-				*/
 			}
-			cout << "Completed read/write!" << endl;
-			recBuf -= (MAX_REC_SIZE - size);
-			size = MAX_REC_SIZE;
-			while((sent = write(sockfd, recBuf, size)) && size > 0){
-				recBuf += sent;
-				size -= sent;
-			}
-			cout << "done!" << endl;
-			cout << endl;
-			cout << endl;
-			cout << endl;
-			
-		} else {
-			size = sizeof(ERROR);
+		} else if(!returnThread){
+			cout << "Error: request not valid" << endl;
+			returnThread = true;
+		}
+		if(returnThread) {
+			size = ERRORSIZE;
 			char* ptr = ERROR;
 			while((sent = write(sockfd, ptr, size)) && size > 0){
 				ptr += sent;
 				size -= sent;
 			}
-			cout << "Error: request not valid";
+			cout << "Thread failure" << endl;
 			cout << endl;
 			cout << endl;
 			cout << endl;
@@ -269,7 +263,6 @@ void *producer(void *arg)
 		if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
 			sizeof(int)) == -1) {
 			perror("setsockopt");
-			exit(1);
 		}
 		if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sockfd);
@@ -283,7 +276,6 @@ void *producer(void *arg)
 
 	if (listen(sockfd, 5) == 1) {
 		perror("listen");
-		exit(1);
 	}
 
 	while (1) {
@@ -304,8 +296,10 @@ void *producer(void *arg)
 
 bool validateRequest(char *buffer)
 {
-	if (buffer == NULL || strlen(buffer) < 1)
+	string tempBuf(buffer);
+	if (buffer == NULL || tempBuf.length() < 1)
 	{
+		cout << "nobuffer" << endl;
 		return false;
 	}
 	
@@ -334,6 +328,7 @@ bool validateRequest(char *buffer)
 
 	// If the list has more than 3 elements, method not 'GET',
 	//	or HTTP VERSION not '1.0' then request is not valid
+	cout << '"' << list.size() << endl << list[0] << endl << list[2] << '"' << endl;
 	if (list.size() > 3 || list[0] != METHOD || list[2] != HTTPVERSION)
 	{
 		return false;
@@ -366,8 +361,10 @@ void setRequest(Request *r, char* buffer)
 	}
 
 	// Find just the URI
-	string host = list[1].substr(list[1].find("/") + 2, list[1].size() - 8);
-
+	string host = list[1].substr(list[1].find("/") + 2, list[1].size() - 7);
+	if(host.substr(host.length()-1,1) == "/"){
+		host = host.substr(0,host.length()-1);
+	}
 	// If "www." is not part of uri already, then add it 
 	if(host.substr(0,4) != "www.")
 	{
@@ -396,7 +393,6 @@ void setRequest(Request *r, char* buffer)
 	string total = initialLine + newHeaders;
 	//headers.erase(0, total.find("\r\n"));
 	
-	cout << total << endl;
 	
 	char *combined = new char[total.length() + 1];
 	strcpy(combined, total.c_str());
