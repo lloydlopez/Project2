@@ -47,7 +47,6 @@ bool validateRequest(char *buffer);
 void setRequest(Request *r, char *buffer);
 void *producer(void *arg);
 void *consumer(void *arg);
-void *hello(void *arg);
 
 int main(int argc, char *argv[])
 {
@@ -70,13 +69,11 @@ int main(int argc, char *argv[])
 	for (int i = 0; i < MAX_THREADS; i++) {
 		if (pthread_join(threads[i], NULL)) {
 			cout << "Join error" << endl;
-			pthread_cancel(cid[i]);
 		}
 	}
 
 	if (pthread_join(pro, NULL)) {
 		cout << "Join error" << endl;
-		pthread_cancel(pid);
 	}
 
 	return 0;
@@ -126,13 +123,12 @@ void *consumer(void *arg)
 			if (numRead == MAX_REQ_SIZE)
 				break;
 		}
+		reqBuf -= (MAX_REQ_SIZE-size);
 
-		reqBuf -= numRead;
-		cout << reqBuf << endl;
 		if(validateRequest(reqBuf) && !returnThread)
 		{
-			
 			setRequest(&r, reqBuf);
+			cout << r.buffer << endl;
 			
 			//open socket to web server
 			memset(&hints, 0, sizeof hints);
@@ -159,58 +155,65 @@ void *consumer(void *arg)
 
 					break;
 				}
-
 				if (p == NULL) {
 					fprintf(stderr, "client: failed to connect\n");
-					return NULL;
+					returnThread = true;
+					close(proxyfd);
+					close(sockfd);
 				}
-
-				freeaddrinfo(servinfo);
-				
-				size = MAX_REC_SIZE;
-				numRead = 0;
-				
-				cout << "Created new socket!" << endl;
-				
-				while((sent = write(proxyfd, r.buffer, bufSize)) && bufSize > 0){
-					if(sent < 0)
-						perror("Write Failed");
-					r.buffer += sent;
-					bufSize -= sent;
-				}
-				
-				cout << "Completed first write!" << endl;
-				
-				while((numRead = read(proxyfd, recBuf, size)) && size > 0){
-					recBuf += numRead;
-					size -= numRead;
-					/*
-					if(size == 0){
-						recBuf -= MAX_REC_SIZE;
-						size += MAX_REC_SIZE;
-						while((sent = write(sockfd, recBuf, size)) && size > 0){
-							recBuf += sent;
-							size -= sent;
-						}
-						recBuf -= MAX_REC_SIZE;
-						size += MAX_REC_SIZE;
+				if(!returnThread){
+					freeaddrinfo(servinfo);
+					
+					size = MAX_REC_SIZE;
+					numRead = 0;
+					
+					cout << "Created new socket!" << endl;
+					
+					while((sent = write(proxyfd, r.buffer, bufSize)) && bufSize > 0){
+						if(sent < 0)
+							perror("Write Failed");
+						r.buffer += sent;
+						bufSize -= sent;
 					}
-					*/
+					
+					cout << "Completed first write!" << endl;
+					
+					while((numRead = read(proxyfd, recBuf, size)) && size > 0){
+						recBuf += numRead;
+						size -= numRead;
+						/*
+						if(size == 0){
+							recBuf -= MAX_REC_SIZE;
+							size += MAX_REC_SIZE;
+							while((sent = write(sockfd, recBuf, size)) && size > 0){
+								recBuf += sent;
+								size -= sent;
+							}
+							recBuf -= MAX_REC_SIZE;
+							size += MAX_REC_SIZE;
+						}
+						*/
+					}
+					cout << "Completed read/write!" << endl;
+					recBuf -= (MAX_REC_SIZE - size);
+					size = MAX_REC_SIZE;
+					while((sent = write(sockfd, recBuf, size)) && size > 0){
+						if(sent < 0){
+							break;
+						}
+						recBuf += sent;
+						size -= sent;
+					}
+					sleep(1);
+					cout << "done!" << endl;
+					cout << endl;
+					cout << endl;
+					cout << endl;
 				}
-				cout << "Completed read/write!" << endl;
-				recBuf -= (MAX_REC_SIZE - size);
-				size = MAX_REC_SIZE;
-				while((sent = write(sockfd, recBuf, size)) && size > 0){
-					recBuf += sent;
-					size -= sent;
-				}
-				cout << "done!" << endl;
-				cout << endl;
-				cout << endl;
-				cout << endl;
 			}
 		} else if(!returnThread){
-			cout << "validateRequest() failed!" << endl;
+			cout << "Error: request not valid" << endl;
+			returnThread = true;
 		}
 		if(returnThread) {
 			size = ERRORSIZE;
@@ -219,7 +222,7 @@ void *consumer(void *arg)
 				ptr += sent;
 				size -= sent;
 			}
-			cout << "Error: request not valid";
+			cout << "Thread failure" << endl;
 			cout << endl;
 			cout << endl;
 			cout << endl;
@@ -260,7 +263,6 @@ void *producer(void *arg)
 		if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
 			sizeof(int)) == -1) {
 			perror("setsockopt");
-			exit(1);
 		}
 		if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sockfd);
@@ -274,7 +276,6 @@ void *producer(void *arg)
 
 	if (listen(sockfd, 5) == 1) {
 		perror("listen");
-		exit(1);
 	}
 
 	while (1) {
@@ -295,8 +296,10 @@ void *producer(void *arg)
 
 bool validateRequest(char *buffer)
 {
-	if (buffer == NULL || strlen(buffer) < 1)
+	string tempBuf(buffer);
+	if (buffer == NULL || tempBuf.length() < 1)
 	{
+		cout << "nobuffer" << endl;
 		return false;
 	}
 	
