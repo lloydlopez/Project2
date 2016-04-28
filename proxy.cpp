@@ -36,25 +36,28 @@ queue<int> sockets;
 const int ERRORSIZE = 20;
 const int MAX_THREADS = 30;
 const int MAX_REQ_SIZE = 2048;
-const int MAX_REC_SIZE = 100000; 
+const int MAX_REC_SIZE = 1000000; 
 const string METHOD = "GET";
 const string HTTPVERSION = "HTTP/1.0";
 char* ERROR = (char*)"500 'Internal Error'";
 const char* HTTPPORT = (char*)"80";
 sem_t mySemaphore;
+pthread_t pro;
+vector<pthread_t> threads;
+int availableThreads = 0;
 
 bool validateRequest(char *buffer);
 void setRequest(Request *r, char *buffer);
 void *producer(void *arg);
 void *consumer(void *arg);
+void int_handler(int);
 
 int main(int argc, char *argv[])
 {
-	pthread_t pro;
+	signal(SIGINT,int_handler);
 	int pid;
 	int cid[MAX_THREADS];
 	sem_init(&mySemaphore, 0, 0);
-	vector<pthread_t> threads;
 
 	if ((pid = pthread_create(&pro, NULL, &producer, (void*)argv[1])))
 		printf("producer is broken");
@@ -75,7 +78,8 @@ int main(int argc, char *argv[])
 	if (pthread_join(pro, NULL)) {
 		cout << "Join error" << endl;
 	}
-
+	sem_destroy(&mySemaphore);
+	pthread_mutex_destroy(&lock);
 	return 0;
 }
 
@@ -93,6 +97,7 @@ void *consumer(void *arg)
 	int bufSize = MAX_REQ_SIZE;
 	struct Request r;
 	bool returnThread = false;
+	char* ptr = ERROR;
 
 	while (1) {
 		returnThread = false;
@@ -100,6 +105,7 @@ void *consumer(void *arg)
 		pthread_mutex_lock(&lock);
 		sockfd = sockets.front();
 		sockets.pop();
+		availableThreads++;
 		pthread_mutex_unlock(&lock);
 		size = MAX_REQ_SIZE;
 
@@ -128,28 +134,29 @@ void *consumer(void *arg)
 		if(validateRequest(reqBuf) && !returnThread)
 		{
 			setRequest(&r, reqBuf);
-			cout << r.buffer << endl;
 			
 			//open socket to web server
 			memset(&hints, 0, sizeof hints);
 			hints.ai_family = AF_UNSPEC;
 			hints.ai_socktype = SOCK_STREAM;
-			cout << r.host << endl;
+			cout << '"' << r.host << '"' << endl;
+			sleep(5);
 			if((rv = getaddrinfo(r.host, HTTPPORT, &hints, &servinfo)) != 0) {
-				perror("host resolve issue");
+				perror("getaddrinfo");
 				returnThread = true;
 			}
+			cout << returnThread << endl;
 			if(!returnThread){
 				for(p = servinfo; p != NULL; p = p->ai_next) {
 					if ((proxyfd = socket(p->ai_family, p->ai_socktype,
 					p->ai_protocol)) == -1) {
-						perror("client: socket");
+						perror("socket");
 						continue;
 					}
 
 					if (connect(proxyfd, p->ai_addr, p->ai_addrlen) == -1) {
 						close(proxyfd);
-						perror("client: connect");
+						perror("connect");
 						continue;
 					}
 
@@ -167,8 +174,6 @@ void *consumer(void *arg)
 					size = MAX_REC_SIZE;
 					numRead = 0;
 					
-					cout << "Created new socket!" << endl;
-					
 					while((sent = write(proxyfd, r.buffer, bufSize)) && bufSize > 0){
 						if(sent < 0)
 							perror("Write Failed");
@@ -176,27 +181,14 @@ void *consumer(void *arg)
 						bufSize -= sent;
 					}
 					
-					cout << "Completed first write!" << endl;
 					
 					while((numRead = read(proxyfd, recBuf, size)) && size > 0){
 						recBuf += numRead;
 						size -= numRead;
-						/*
-						if(size == 0){
-							recBuf -= MAX_REC_SIZE;
-							size += MAX_REC_SIZE;
-							while((sent = write(sockfd, recBuf, size)) && size > 0){
-								recBuf += sent;
-								size -= sent;
-							}
-							recBuf -= MAX_REC_SIZE;
-							size += MAX_REC_SIZE;
-						}
-						*/
 					}
-					cout << "Completed read/write!" << endl;
 					recBuf -= (MAX_REC_SIZE - size);
 					size = MAX_REC_SIZE;
+					cout << recBuf << endl;
 					while((sent = write(sockfd, recBuf, size)) && size > 0){
 						if(sent < 0){
 							break;
@@ -205,31 +197,25 @@ void *consumer(void *arg)
 						size -= sent;
 					}
 					sleep(1);
-					cout << "done!" << endl;
-					cout << endl;
-					cout << endl;
-					cout << endl;
 				}
 			}
 		} else if(!returnThread){
-			cout << "Error: request not valid" << endl;
 			returnThread = true;
 		}
 		if(returnThread) {
 			size = ERRORSIZE;
-			char* ptr = ERROR;
 			while((sent = write(sockfd, ptr, size)) && size > 0){
 				ptr += sent;
 				size -= sent;
 			}
-			cout << "Thread failure" << endl;
-			cout << endl;
-			cout << endl;
-			cout << endl;
+			ptr -= (ERRORSIZE - size);
 		}	
-		//delete [] &r.host;
+		delete [] r.host;
 		close(proxyfd);
 		close(sockfd);
+		pthread_mutex_lock(&lock);
+		availableThreads--;
+		pthread_mutex_unlock(&lock);
 	}
 
 	return NULL;
@@ -285,11 +271,21 @@ void *producer(void *arg)
 			perror("accept");
 			continue;
 		}
-
+		pthread_mutex_lock(&lock);
+		if(sockets.size() > 30){
+			pthread_mutex_unlock(&lock);
+			sleep(2);
+		}else
+			pthread_mutex_unlock(&lock);
 		pthread_mutex_lock(&lock);
 		sockets.push(new_fd);
 		pthread_mutex_unlock(&lock);
-		sem_post(&mySemaphore);
+		pthread_mutex_lock(&lock);
+		if(availableThreads < 30){
+			pthread_mutex_unlock(&lock);
+			sem_post(&mySemaphore);
+		}else
+			pthread_mutex_unlock(&lock);
 	}
 	return NULL;
 }
@@ -299,7 +295,6 @@ bool validateRequest(char *buffer)
 	string tempBuf(buffer);
 	if (buffer == NULL || tempBuf.length() < 1)
 	{
-		cout << "nobuffer" << endl;
 		return false;
 	}
 	
@@ -328,7 +323,6 @@ bool validateRequest(char *buffer)
 
 	// If the list has more than 3 elements, method not 'GET',
 	//	or HTTP VERSION not '1.0' then request is not valid
-	cout << '"' << list.size() << endl << list[0] << endl << list[2] << '"' << endl;
 	if (list.size() > 3 || list[0] != METHOD || list[2] != HTTPVERSION)
 	{
 		return false;
@@ -398,6 +392,28 @@ void setRequest(Request *r, char* buffer)
 	strcpy(combined, total.c_str());
 	
 	r->buffer = combined;
+	delete [] combined;
 }
 
-// TEST: google.com www.google.com/ /www.google.com
+
+void int_handler(int x){
+  	for (int i = 0; i < MAX_THREADS; i++) {
+		if (pthread_cancel(threads[i])) {
+			cout << "Join error" << endl;
+		}
+	}
+
+	if (pthread_cancel(pro)) {
+		cout << "Join error" << endl;
+	}
+	
+	if(sockets.size() > 0){
+		for(unsigned int i = 0; i < sockets.size(); i++){
+			close(sockets.front());
+			sockets.pop();
+		}
+	}
+	sem_destroy(&mySemaphore);
+	pthread_mutex_destroy(&lock);
+	exit(1);
+}
