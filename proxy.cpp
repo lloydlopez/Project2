@@ -35,7 +35,7 @@ pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 queue<int> sockets;
 const int ERRORSIZE = 20;
 const int MAX_THREADS = 30;
-const int MAX_REQ_SIZE = 2048;
+const int MAX_REQ_SIZE = 4096;
 const int MAX_REC_SIZE = 100000; 
 const string METHOD = "GET";
 const string HTTPVERSION = "HTTP/1.0";
@@ -131,15 +131,24 @@ void *consumer(void *arg)
 		}
 		reqBuf -= (MAX_REQ_SIZE-size);
 
+		cout << reqBuf << endl;
+		
 		if(validateRequest(reqBuf) && !returnThread)
 		{
 			setRequest(&r, reqBuf);
-			
+			cout << r.buffer << endl;
 			//open socket to web server
 			memset(&hints, 0, sizeof hints);
 			hints.ai_family = AF_UNSPEC;
 			hints.ai_socktype = SOCK_STREAM;
 			cout << '"' << r.host << '"' << endl;
+			char* newBuf = (char*)malloc(MAX_REQ_SIZE);
+			for(int i = 0; i < MAX_REQ_SIZE; i++){
+				newBuf = r.buffer;
+				newBuf++;
+				r.buffer++;
+			}
+			newBuf -= MAX_REQ_SIZE;
 			if((rv = getaddrinfo(r.host, HTTPPORT, &hints, &servinfo)) != 0) {
 				perror("getaddrinfo");
 				returnThread = true;
@@ -171,16 +180,16 @@ void *consumer(void *arg)
 					
 					size = MAX_REC_SIZE;
 					numRead = 0;
-					
-					while((sent = write(proxyfd, r.buffer, bufSize)) && bufSize > 0){
+					cout << newBuf << endl;
+					while((sent = write(proxyfd, newBuf, bufSize)) && bufSize > 0){
 						if(sent < 0)
 							perror("Write Failed");
-						r.buffer += sent;
+						newBuf += sent;
 						bufSize -= sent;
 					}
 					
-					
 					while((numRead = read(proxyfd, recBuf, size)) && size > 0){
+						cout << "made it here" << endl;
 						recBuf += numRead;
 						size -= numRead;
 					}
